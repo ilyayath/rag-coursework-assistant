@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
@@ -12,40 +12,40 @@ logger = get_logger("RAGChain")
 
 class RAGChain:
     def __init__(self):
-        # Поріг схожості (емпірично підібраний для all-MiniLM-L6-v2)
-        # Чим менше значення, тим суворіший відбір. 1.3 - 1.5 - це "м'який" поріг.
-        self.score_threshold = 1.4
+        # Поріг відключено (ставимо високий), щоб модель бачила хоч щось
+        self.score_threshold = 20.0
 
         if Config.LLM_TYPE == "ollama":
             self.llm = ChatOllama(
                 model=Config.LLM_MODEL,
                 base_url=Config.OLLAMA_BASE_URL,
-                temperature=0
+                temperature=0.3  # Трохи підняли креативність, щоб вона не мовчала
             )
         else:
             self.llm = ChatOpenAI(
                 model=Config.LLM_MODEL,
-                temperature=0,
+                temperature=0.3,
                 api_key=Config.OPENAI_API_KEY
             )
 
         self.vector_store = VectorStore()
 
-        # Покращений промпт з інструкцією "Chain of Thought" (думай крок за кроком)
+        # --- ГОЛОВНА ЗМІНА: Промпт англійською ---
+        # Ми просимо модель думати англійською (вона так розумніша),
+        # але відповідати українською.
         template = """
-        Ти — аналітичний асистент. Твоє завдання — відповідати на запитання виключно на основі наданого контексту.
+        You are a helpful assistant for question-answering tasks. 
+        Use the following pieces of retrieved context to answer the question. 
+        If you don't know the answer, just say that you don't know. 
 
-        Правила:
-        1. Використовуй ТІЛЬКИ наданий контекст. Не додавай інформацію з власної пам'яті.
-        2. Якщо в контексті немає відповіді, напиши: "Інформація відсутня в наданих документах".
-        3. Відповідь має бути чіткою, структурованою та українською мовою.
+        IMPORTANT: Answer in Ukrainian language only.
 
-        Контекст:
+        Context:
         {context}
 
-        Запитання: {question}
+        Question: {question}
 
-        Відповідь:
+        Answer in Ukrainian:
         """
 
         self.prompt = PromptTemplate(
@@ -60,48 +60,48 @@ class RAGChain:
         )
 
     def ask(self, query: str) -> Dict[str, Any]:
-        logger.info(f"Отримано запит: {query}")
+        print(f"\n--- [DEBUG] ЗАПИТ: {query} ---")
 
-        # 1. Пошук з оцінками
+        # 1. Пошук
         results_with_scores = self.vector_store.search_with_score(query, k=Config.K_RETRIEVAL)
 
-        # 2. Фільтрація за порогом (Thresholding)
         relevant_docs = []
         for doc, score in results_with_scores:
-            logger.info(f"Знайдено фрагмент (Score: {score:.4f}): {doc.page_content[:50]}...")
+            # Виводимо score для контролю
+            print(f"[DEBUG] Found Chunk (Score: {score:.4f})")
 
-            # У ChromaDB distance score: 0 = ідентично, > 1.5 = мало схоже
             if score < self.score_threshold:
                 relevant_docs.append(doc)
-            else:
-                logger.warning(f"Фрагмент відкинуто через низьку релевантність (Score: {score:.4f})")
 
-        # Якщо після фільтрації нічого не залишилось
         if not relevant_docs:
-            logger.info("Не знайдено релевантних документів після фільтрації.")
             return {
-                "answer": "У завантажених документах немає інформації, що відповідає вашому запиту (низька релевантність).",
+                "answer": "Не знайдено релевантних документів (спробуйте перефразувати).",
                 "sources": []
             }
 
-        # 3. Формування контексту
+        # 2. Формування контексту
         context_text = "\n\n".join(doc.page_content for doc in relevant_docs)
 
-        # 4. Генерація
-        logger.info("Генерація відповіді через LLM...")
+        # --- ДІАГНОСТИКА: ЩО БАЧИТЬ МОДЕЛЬ? ---
+        # Виводимо перші 500 символів тексту, який ми знайшли.
+        # Якщо тут "сміття" або ієрогліфи - проблема в PDF, а не в моделі.
+        print(f"\n[DEBUG] КОНТЕКСТ ДЛЯ МОДЕЛІ:\n{context_text[:500]}...\n")
+
+        # 3. Генерація
+        print("[DEBUG] Генерація відповіді...")
         response_text = self.chain.invoke({
             "context": context_text,
             "question": query
         })
 
-        # 5. Джерела
+        # 4. Джерела
         sources = []
         seen_sources = set()
         for doc in relevant_docs:
-            source_id = f"{doc.metadata.get('source')}_p{doc.metadata.get('page')}"
+            source_id = f"{doc.metadata.get('source')}_{doc.metadata.get('page')}"
             if source_id not in seen_sources:
                 sources.append({
-                    "source": doc.metadata.get("source", "Невідомий файл"),
+                    "source": doc.metadata.get("source", "unknown"),
                     "page": doc.metadata.get("page", 1)
                 })
                 seen_sources.add(source_id)

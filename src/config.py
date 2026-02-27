@@ -16,7 +16,7 @@ class Config:
     # --- МОДЕЛІ ---
     # Модель для ембедингів (перетворення тексту в цифри)
     # Вона легка і працює навіть на CPU
-    EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
     # Налаштування LLM (Ollama)
     LLM_TYPE = "ollama"
@@ -26,12 +26,12 @@ class Config:
 
     # --- RAG ПАРАМЕТРИ ---
     # Розмір шматка тексту (в символах)
-    CHUNK_SIZE = 500
+    CHUNK_SIZE = 1000
     # Перекриття шматків для збереження контексту
-    CHUNK_OVERLAP = 50
+    CHUNK_OVERLAP = 200
     # Кількість шматків, які ми шукаємо в базі (Context Window)
     # Беремо 4, щоб не перевантажувати маленьку модель зайвим текстом
-    K_RETRIEVAL = 4
+    K_RETRIEVAL = 5
 
 # Автоматичне створення папок, якщо їх немає
 for directory in [Config.DB_DIR, Config.DATA_DIR]:
