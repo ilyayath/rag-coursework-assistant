@@ -12,14 +12,14 @@ logger = get_logger("RAGChain")
 
 class RAGChain:
     def __init__(self):
-        # Поріг відключено (ставимо високий), щоб модель бачила хоч щось
+        # Ваше значення — залишаємо як є, бо релевантні чанки мають score ~9
         self.score_threshold = 20.0
 
         if Config.LLM_TYPE == "ollama":
             self.llm = ChatOllama(
                 model=Config.LLM_MODEL,
                 base_url=Config.OLLAMA_BASE_URL,
-                temperature=0.3  # Трохи підняли креативність, щоб вона не мовчала
+                temperature=0.3
             )
         else:
             self.llm = ChatOpenAI(
@@ -30,9 +30,6 @@ class RAGChain:
 
         self.vector_store = VectorStore()
 
-        # --- ГОЛОВНА ЗМІНА: Промпт англійською ---
-        # Ми просимо модель думати англійською (вона так розумніша),
-        # але відповідати українською.
         template = """
         You are a helpful assistant for question-answering tasks. 
         Use the following pieces of retrieved context to answer the question. 
@@ -67,9 +64,7 @@ class RAGChain:
 
         relevant_docs = []
         for doc, score in results_with_scores:
-            # Виводимо score для контролю
             print(f"[DEBUG] Found Chunk (Score: {score:.4f})")
-
             if score < self.score_threshold:
                 relevant_docs.append(doc)
 
@@ -82,11 +77,13 @@ class RAGChain:
         # 2. Формування контексту
         context_text = "\n\n".join(doc.page_content for doc in relevant_docs)
 
-        # --- ДІАГНОСТИКА: ЩО БАЧИТЬ МОДЕЛЬ? ---
-        # Виводимо перші 500 символів тексту, який ми знайшли.
-        # Якщо тут "сміття" або ієрогліфи - проблема в PDF, а не в моделі.
         print(f"\n[DEBUG] КОНТЕКСТ ДЛЯ МОДЕЛІ:\n{context_text[:500]}...\n")
 
+        print("\n[DEBUG] УСІ ЗНАЙДЕНІ ЧАНКИ:")
+        for i, doc in enumerate(relevant_docs):
+            print(f"\n--- ЧАНК {i + 1} ---")
+            print(doc.page_content)
+            print(f"Метадані: {doc.metadata}")
         # 3. Генерація
         print("[DEBUG] Генерація відповіді...")
         response_text = self.chain.invoke({
@@ -94,7 +91,7 @@ class RAGChain:
             "question": query
         })
 
-        # 4. Джерела
+        # 4. Джерела — дедуплікація за парою (файл, сторінка)
         sources = []
         seen_sources = set()
         for doc in relevant_docs:

@@ -14,11 +14,8 @@ def clean_text(text: str) -> str:
     """
     Функція для очищення тексту від сміття після PDF.
     """
-    # Заміна нерозривних пробілів та табуляцій
     text = text.replace('\xa0', ' ').replace('\t', ' ')
-    # Видалення зайвих переносів рядків (коли речення розірване посередині)
     text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
-    # Видалення множинних пробілів
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
@@ -34,16 +31,12 @@ def load_and_split_documents(file_path: str) -> List[Document]:
         logger.info(f"Початок обробки файлу: {file_path}")
 
         if file_extension == ".pdf":
-            # Використовуємо PDFPlumberLoader (він краще бачить таблиці і колонки)
             loader = PDFPlumberLoader(file_path)
             raw_docs = loader.load()
 
-            # Очищаємо текст кожного фрагмента
             for doc in raw_docs:
                 doc.page_content = clean_text(doc.page_content)
-                # Додаємо метадані, якщо їх немає
                 if "page" not in doc.metadata:
-                    # pdfplumber зазвичай додає 'page', але про всяк випадок
                     doc.metadata["page"] = 1
 
             documents = raw_docs
@@ -59,18 +52,16 @@ def load_and_split_documents(file_path: str) -> List[Document]:
             logger.warning("Файл порожній або не вдалося зчитати текст.")
             return []
 
-        # Налаштування спліттера
-        # Трохи збільшимо chunk_size, щоб захопити більше контексту
+        # Використовуємо значення з Config замість хардкоду
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=800,  # Було 500, ставимо 800 для цілісності думок
-            chunk_overlap=200,
-            separators=["\n\n", "\n", ". ", " ", ""],  # Пріоритет розділювачів
+            chunk_size=Config.CHUNK_SIZE,
+            chunk_overlap=Config.CHUNK_OVERLAP,
+            separators=["\n\n", "\n", ". ", " ", ""],
             length_function=len
         )
 
         split_docs = text_splitter.split_documents(documents)
 
-        # Фінальна підчистка метаданих
         for doc in split_docs:
             doc.metadata["source"] = os.path.basename(doc.metadata.get("source", "unknown"))
 

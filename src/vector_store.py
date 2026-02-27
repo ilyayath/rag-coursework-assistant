@@ -32,24 +32,30 @@ class VectorStore:
         )
 
         vector_db.add_documents(documents)
-        vector_db = None
+
+        # Явне видалення об'єкта для коректного звільнення ресурсів
+        del vector_db
+        gc.collect()
+
         logger.info("Документи успішно збережені.")
 
     def search_with_score(self, query: str, k: int = Config.K_RETRIEVAL) -> List[Tuple[Document, float]]:
-        """
-        Шукає фрагменти та повертає їх разом з оцінкою дистанції.
-        Чим менше score, тим кращий збіг.
-        """
         vector_db = Chroma(
             persist_directory=self.persist_directory,
             embedding_function=self.embedding_model
         )
 
-        # similarity_search_with_score повертає список кортежів (doc, score)
-        results = vector_db.similarity_search_with_score(query, k=k)
+        # MMR (Maximal Marginal Relevance) — шукає різноманітні чанки,
+        # а не 5 майже однакових з одного місця документа
+        results = vector_db.max_marginal_relevance_search(query, k=k, fetch_k=20)
 
-        vector_db = None
-        return results
+        # MMR не повертає score, тому додаємо фіктивний 0.0
+        results_with_scores = [(doc, 0.0) for doc in results]
+
+        del vector_db
+        gc.collect()
+
+        return results_with_scores
 
     def clear(self):
         gc.collect()
