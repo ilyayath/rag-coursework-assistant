@@ -1,6 +1,5 @@
 """
 app.py — точка входу застосунку.
-Тут лише page_config, ін'єкція стилів та виклик UI-модулів.
 """
 
 # ── Page config — ОБОВ'ЯЗКОВО першим ─────────────────────────────────────────
@@ -34,8 +33,20 @@ from ui.chat       import render_chat
 logger = get_logger("App")
 
 
+# ── Ініціалізація системних компонентів (кешується між ререндерами) ───────────
+@st.cache_resource(show_spinner="Завантаження моделей…")
+def _load_system():
+    """
+    Один VectorStore → передається в RAGChain.
+    Embedding-модель завантажується рівно один раз.
+    Spinner показується тільки під час реального завантаження.
+    """
+    vs = VectorStore()
+    return vs, RAGChain(vector_store=vs)
+
+
 # ── Ініціалізація стану сесії ─────────────────────────────────────────────────
-def _init_session() -> None:
+def _init_session(vector_store: VectorStore) -> None:
     defaults = {
         "messages":     [],
         "doc_names":    [],
@@ -44,33 +55,27 @@ def _init_session() -> None:
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
 
-
-# ── Ініціалізація системних компонентів (кешується) ──────────────────────────
-@st.cache_resource(show_spinner=False)
-def _load_system():
-    """
-    Завантажує VectorStore та RAGChain один раз за сесію.
-    Результат кешується — при рефреші не перезавантажується.
-    """
-    return VectorStore(), RAGChain()
+    # Синхронізація: якщо сторінку перезавантажили, але база непорожня —
+    # відновлюємо лічильник чанків зі справжнього стану Chroma.
+    if st.session_state["total_chunks"] == 0:
+        real_count = vector_store.count()
+        if real_count > 0:
+            st.session_state["total_chunks"] = real_count
+            logger.info(f"Відновлено {real_count} фрагментів зі збереженої бази.")
 
 
 # ── Головна функція ───────────────────────────────────────────────────────────
 def main() -> None:
-    _init_session()
+    try:
+        vector_store, rag_chain = _load_system()
+    except Exception as e:
+        st.error(f"Критична помилка запуску: {e}")
+        st.info("Перевірте, чи запущено Ollama і встановлені всі залежності.")
+        st.stop()
 
-    # Завантаження моделей
-    with st.spinner("Завантаження моделей…"):
-        try:
-            vector_store, rag_chain = _load_system()
-        except Exception as e:
-            st.error(f"Критична помилка запуску: {e}")
-            st.info("Перевірте, чи запущено Ollama і встановлені всі залежності.")
-            st.stop()
+    _init_session(vector_store)
 
-    # Рендер сторінки
     render_sidebar(vector_store)
-
     render_page_header()
     render_chat(rag_chain)
 

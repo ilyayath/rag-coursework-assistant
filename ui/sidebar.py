@@ -13,12 +13,10 @@ from ui.components import (
     render_doc_list,
 )
 
+MAX_FILE_SIZE_MB = 50
+
 
 def render_sidebar(vector_store) -> None:
-    """
-    Рендерить бічну панель і виконує всю логіку
-    завантаження / обробки / очищення документів.
-    """
     with st.sidebar:
         render_sidebar_logo()
 
@@ -35,11 +33,9 @@ def render_sidebar(vector_store) -> None:
         process_btn = col1.button("▶ Обробити", use_container_width=True)
         clear_btn   = col2.button("✕ Очистити", use_container_width=True)
 
-        # ── Обробка ───────────────────────────────────────────
         if process_btn:
             _handle_process(uploaded_files, vector_store)
 
-        # ── Очищення ──────────────────────────────────────────
         if clear_btn:
             _handle_clear(vector_store)
 
@@ -50,7 +46,6 @@ def render_sidebar(vector_store) -> None:
             chunk_count=st.session_state.get("total_chunks", 0),
         )
 
-        # ── Список файлів ─────────────────────────────────────
         if st.session_state.get("doc_names"):
             section_label("Завантажено")
             render_doc_list(st.session_state["doc_names"])
@@ -60,8 +55,6 @@ def render_sidebar(vector_store) -> None:
 
 def _handle_process(uploaded_files, vector_store) -> None:
     from src.document_loader import load_and_split_documents
-    import os
-    import tempfile
 
     if not uploaded_files:
         st.warning("Спочатку оберіть файли.")
@@ -69,16 +62,18 @@ def _handle_process(uploaded_files, vector_store) -> None:
 
     bar = st.progress(0, text="")
     new_chunks = 0
-
-    # Отримуємо список вже оброблених файлів
     processed_docs = st.session_state.get("doc_names", [])
 
     for i, file in enumerate(uploaded_files):
-        progress = (i + 0.5) / len(uploaded_files)
-        bar.progress(progress, text=f"⟳  {file.name}")
+        bar.progress((i + 0.5) / len(uploaded_files), text=f"⟳  {file.name}")
 
-        # ПЕРЕВІРКА: Якщо файл вже в базі — пропускаємо його
+        # Перевірка: вже оброблено
         if file.name in processed_docs:
+            continue
+
+        # Перевірка розміру файлу
+        if file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            st.error(f"Файл «{file.name}» перевищує {MAX_FILE_SIZE_MB} MB — пропущено.")
             continue
 
         tmp_path = None
@@ -94,8 +89,6 @@ def _handle_process(uploaded_files, vector_store) -> None:
 
             vector_store.add_documents(docs)
             new_chunks += len(docs)
-
-            # Додаємо файл до списку оброблених, щоб наступного разу його пропустити
             st.session_state.setdefault("doc_names", []).append(file.name)
 
         except Exception as e:
@@ -104,14 +97,15 @@ def _handle_process(uploaded_files, vector_store) -> None:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
-    # Оновлюємо лічильник чанків тільки якщо додалися нові
+    bar.empty()
+
     if new_chunks > 0:
-        st.session_state["total_chunks"] = st.session_state.get("total_chunks", 0) + new_chunks
+        st.session_state["total_chunks"] = (
+            st.session_state.get("total_chunks", 0) + new_chunks
+        )
         st.toast(f"✓ Додано {new_chunks} нових фрагментів")
     else:
         st.toast("ℹ️ Усі вибрані файли вже були оброблені раніше.")
-
-    bar.empty()
 
 
 def _handle_clear(vector_store) -> None:
