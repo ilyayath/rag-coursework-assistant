@@ -11,7 +11,7 @@ class Config:
     DATA_DIR = os.path.join(BASE_DIR, "data")
 
     # --- МОДЕЛІ ---
-    EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 
     # Налаштування LLM (Ollama)
     LLM_TYPE = "ollama"
@@ -19,8 +19,8 @@ class Config:
     OLLAMA_BASE_URL = "http://localhost:11434"
 
     # --- RAG ПАРАМЕТРИ ---
-    CHUNK_SIZE = 1200       # Синхронізовано з document_loader.py
-    CHUNK_OVERLAP = 300
+    CHUNK_SIZE = 250      # Синхронізовано з document_loader.py
+    CHUNK_OVERLAP = 50
     # Зменшено з 15 до 5 — малі моделі краще працюють з меншим контекстом
     K_RETRIEVAL = 6
 

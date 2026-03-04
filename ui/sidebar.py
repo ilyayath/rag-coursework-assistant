@@ -60,6 +60,8 @@ def render_sidebar(vector_store) -> None:
 
 def _handle_process(uploaded_files, vector_store) -> None:
     from src.document_loader import load_and_split_documents
+    import os
+    import tempfile
 
     if not uploaded_files:
         st.warning("Спочатку оберіть файли.")
@@ -68,10 +70,18 @@ def _handle_process(uploaded_files, vector_store) -> None:
     bar = st.progress(0, text="")
     new_chunks = 0
 
+    # Отримуємо список вже оброблених файлів
+    processed_docs = st.session_state.get("doc_names", [])
+
     for i, file in enumerate(uploaded_files):
         progress = (i + 0.5) / len(uploaded_files)
         bar.progress(progress, text=f"⟳  {file.name}")
 
+        # ПЕРЕВІРКА: Якщо файл вже в базі — пропускаємо його
+        if file.name in processed_docs:
+            continue
+
+        tmp_path = None
         try:
             suffix = "." + file.name.rsplit(".", 1)[-1]
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -84,19 +94,24 @@ def _handle_process(uploaded_files, vector_store) -> None:
 
             vector_store.add_documents(docs)
             new_chunks += len(docs)
-            os.unlink(tmp_path)
 
-            if file.name not in st.session_state.get("doc_names", []):
-                st.session_state.setdefault("doc_names", []).append(file.name)
+            # Додаємо файл до списку оброблених, щоб наступного разу його пропустити
+            st.session_state.setdefault("doc_names", []).append(file.name)
 
         except Exception as e:
-            st.error(f"{file.name}: {e}")
+            st.error(f"Помилка з файлом {file.name}: {e}")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
-    st.session_state["total_chunks"] = (
-        st.session_state.get("total_chunks", 0) + new_chunks
-    )
+    # Оновлюємо лічильник чанків тільки якщо додалися нові
+    if new_chunks > 0:
+        st.session_state["total_chunks"] = st.session_state.get("total_chunks", 0) + new_chunks
+        st.toast(f"✓ Додано {new_chunks} нових фрагментів")
+    else:
+        st.toast("ℹ️ Усі вибрані файли вже були оброблені раніше.")
+
     bar.empty()
-    st.toast(f"✓ Додано {new_chunks} фрагментів")
 
 
 def _handle_clear(vector_store) -> None:

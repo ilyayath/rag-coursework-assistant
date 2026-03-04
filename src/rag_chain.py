@@ -3,6 +3,7 @@ from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+
 from src.config import Config
 from src.vector_store import VectorStore
 from src.logger import get_logger
@@ -12,38 +13,42 @@ logger = get_logger("RAGChain")
 
 class RAGChain:
     def __init__(self):
-        # Ваше значення — залишаємо як є, бо релевантні чанки мають score ~9
-        self.score_threshold = 20.0
-
+        # Температура 0.1 для максимальної точності
         if Config.LLM_TYPE == "ollama":
             self.llm = ChatOllama(
                 model=Config.LLM_MODEL,
                 base_url=Config.OLLAMA_BASE_URL,
-                temperature=0.3
+                temperature=0.1
             )
         else:
             self.llm = ChatOpenAI(
                 model=Config.LLM_MODEL,
-                temperature=0.3,
+                temperature=0.1,
                 api_key=Config.OPENAI_API_KEY
             )
 
         self.vector_store = VectorStore()
 
+        # Повністю англомовний системний промпт.
+        # Модель тепер "думає" у своєму природному середовищі.
         template = """
-        You are a helpful assistant for question-answering tasks. 
-        Use the following pieces of retrieved context to answer the question. 
-        If you don't know the answer, just say that you don't know. 
+                You are a highly precise document analysis assistant. 
 
-        IMPORTANT: Answer in Ukrainian language only.
+                CONTEXT:
+                {context}
 
-        Context:
-        {context}
+                USER QUESTION: 
+                {question}
 
-        Question: {question}
+                STRICT INSTRUCTIONS:
+                1. Answer the USER QUESTION using ONLY the provided CONTEXT.
+                2. Be direct and concise. DO NOT start your response with filler phrases like "Based on the provided CONTEXT...". Just give the direct answer.
+                3. Do not explain your reasoning. Output ONLY the final answer.
+                4. If the exact answer is not available in the CONTEXT, strictly output this exact phrase and nothing else: "I cannot find the answer in the provided documents."
+                5. Answer in English.
 
-        Answer in Ukrainian:
-        """
+                ANSWER:
+                """
 
         self.prompt = PromptTemplate(
             template=template,
@@ -57,44 +62,43 @@ class RAGChain:
         )
 
     def ask(self, query: str) -> Dict[str, Any]:
-        print(f"\n--- [DEBUG] ЗАПИТ: {query} ---")
+        print(f"\n--- [DEBUG] QUERY: {query} ---")
 
-        # 1. Пошук
-        results_with_scores = self.vector_store.search_with_score(query, k=Config.K_RETRIEVAL)
+        # 1. Пошук у мультимовній базі
+        results_with_scores = self.vector_store.search_with_score(query, k=5)
 
-        relevant_docs = []
-        for doc, score in results_with_scores:
-            print(f"[DEBUG] Found Chunk (Score: {score:.4f})")
-            if score < self.score_threshold:
-                relevant_docs.append(doc)
-
-        if not relevant_docs:
+        if not results_with_scores:
             return {
-                "answer": "Не знайдено релевантних документів (спробуйте перефразувати).",
+                "answer": "No relevant documents found.",
                 "sources": []
             }
 
+        top_docs = [doc for doc, score in results_with_scores]
+
+        print(f"\n[DEBUG] TOP CHUNKS FROM DB:")
+        for i, doc in enumerate(top_docs):
+            print(f"Rank {i + 1}: {doc.page_content[:100]}...")
+
         # 2. Формування контексту
-        context_text = "\n\n".join(doc.page_content for doc in relevant_docs)
+        context_parts = []
+        for doc in top_docs:
+            source_name = doc.metadata.get('source', 'unknown')
+            page_num = doc.metadata.get('page', '?')
+            context_parts.append(f"--- Document: {source_name} (Page {page_num}) ---\n{doc.page_content}")
 
-        print(f"\n[DEBUG] КОНТЕКСТ ДЛЯ МОДЕЛІ:\n{context_text[:500]}...\n")
+        context_text = "\n\n".join(context_parts)
 
-        print("\n[DEBUG] УСІ ЗНАЙДЕНІ ЧАНКИ:")
-        for i, doc in enumerate(relevant_docs):
-            print(f"\n--- ЧАНК {i + 1} ---")
-            print(doc.page_content)
-            print(f"Метадані: {doc.metadata}")
         # 3. Генерація
-        print("[DEBUG] Генерація відповіді...")
+        print("[DEBUG] Generating response...")
         response_text = self.chain.invoke({
             "context": context_text,
             "question": query
         })
 
-        # 4. Джерела — дедуплікація за парою (файл, сторінка)
+        # 4. Збір джерел
         sources = []
         seen_sources = set()
-        for doc in relevant_docs:
+        for doc in top_docs:
             source_id = f"{doc.metadata.get('source')}_{doc.metadata.get('page')}"
             if source_id not in seen_sources:
                 sources.append({

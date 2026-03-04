@@ -45,12 +45,10 @@ class VectorStore:
             embedding_function=self.embedding_model
         )
 
-        # MMR (Maximal Marginal Relevance) — шукає різноманітні чанки,
-        # а не 5 майже однакових з одного місця документа
-        results = vector_db.max_marginal_relevance_search(query, k=k, fetch_k=20)
-
-        # MMR не повертає score, тому додаємо фіктивний 0.0
-        results_with_scores = [(doc, 0.0) for doc in results]
+        # ВИМИКАЄМО MMR, бо тепер у нас є справжній Reranker!
+        # Використовуємо звичайний пошук, який знайде "Times New Roman"
+        # і поверне реальні дистанції.
+        results_with_scores = vector_db.similarity_search_with_score(query, k=k)
 
         del vector_db
         gc.collect()
