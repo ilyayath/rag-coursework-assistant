@@ -38,8 +38,38 @@ class VectorStore:
         if not documents:
             logger.warning("Спроба додати порожній список документів.")
             return
-        logger.info(f"Додаю {len(documents)} фрагментів у базу...")
-        self._db.add_documents(documents)
+        # Захист: якщо _db чомусь None — відновлюємо колекцію перед записом.
+        if self._db is None:
+            logger.warning("_db == None перед add_documents — відновлюємо колекцію.")
+            self._db = self._open_db()
+
+        # Дедуплікація: отримуємо вже існуючі source-імена з бази
+        # щоб не додати той самий файл двічі при повторному завантаженні.
+        try:
+            existing = self._db._collection.get(include=["metadatas"])
+            existing_sources = {
+                m.get("source") for m in existing["metadatas"] if m.get("source")
+            }
+        except Exception:
+            existing_sources = set()
+
+        new_docs = [
+            doc for doc in documents
+            if doc.metadata.get("source") not in existing_sources
+        ]
+
+        if not new_docs:
+            logger.warning("Всі документи вже присутні в базі — пропускаємо.")
+            return
+
+        if len(new_docs) < len(documents):
+            logger.info(
+                f"Дедуплікація: {len(documents) - len(new_docs)} фрагментів пропущено "
+                f"(вже в базі), додаю {len(new_docs)}."
+            )
+
+        logger.info(f"Додаю {len(new_docs)} фрагментів у базу...")
+        self._db.add_documents(new_docs)
         logger.info("Документи успішно збережені.")
 
     def search_with_score(
@@ -49,9 +79,14 @@ class VectorStore:
 
     def count(self) -> int:
         """Повертає кількість фрагментів у базі."""
+        # Виправлення #3: логуємо помилку замість мовчазного повернення 0
+        if self._db is None:
+            logger.warning("count() викликано поки _db == None.")
+            return 0
         try:
             return self._db._collection.count()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Помилка при count(): {e}")
             return 0
 
     def clear(self) -> None:
@@ -63,21 +98,29 @@ class VectorStore:
         self._db = None
 
         # 2. Видаляємо директорію з диска
+        deleted = False
         if os.path.exists(self.persist_directory):
             for attempt in range(2):
                 try:
                     shutil.rmtree(self.persist_directory)
+                    deleted = True
                     break
                 except PermissionError:
                     if attempt == 0:
                         logger.warning("Файли заблоковані. Повторна спроба через 1с...")
                         time.sleep(1)
                     else:
-                        logger.error("Не вдалося видалити директорію бази даних.")
-                        return
+                        # Виправлення: НЕ робимо return — _db має бути відновлена
+                        # в будь-якому випадку, інакше наступний add_documents впаде.
+                        logger.error("Не вдалося видалити директорію — база може містити старі дані.")
+        else:
+            deleted = True
 
         os.makedirs(self.persist_directory, exist_ok=True)
 
-        # 3. Відкриваємо нову чисту колекцію — новий UUID, без артефактів
+        # 3. Відкриваємо нову колекцію — завжди, навіть якщо rmtree не вдався.
         self._db = self._open_db()
-        logger.info("База даних очищена і перестворена.")
+        if deleted:
+            logger.info("База даних очищена і перестворена.")
+        else:
+            logger.warning("База перестворена, але стара директорія могла не видалитись.")

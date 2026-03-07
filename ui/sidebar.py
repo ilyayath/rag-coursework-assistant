@@ -61,8 +61,8 @@ def _handle_process(uploaded_files, vector_store) -> None:
         return
 
     bar = st.progress(0, text="")
-    new_chunks = 0
     processed_docs = st.session_state.get("doc_names", [])
+    any_added = False
 
     for i, file in enumerate(uploaded_files):
         bar.progress((i + 0.5) / len(uploaded_files), text=f"⟳  {file.name}")
@@ -87,9 +87,11 @@ def _handle_process(uploaded_files, vector_store) -> None:
             for doc in docs:
                 doc.metadata["source"] = file.name
 
+            # Виправлення #7: додаємо до doc_names тільки після успішного
+            # збереження у векторну базу — уникаємо неконсистентного стану.
             vector_store.add_documents(docs)
-            new_chunks += len(docs)
             st.session_state.setdefault("doc_names", []).append(file.name)
+            any_added = True
 
         except Exception as e:
             st.error(f"Помилка з файлом {file.name}: {e}")
@@ -99,11 +101,11 @@ def _handle_process(uploaded_files, vector_store) -> None:
 
     bar.empty()
 
-    if new_chunks > 0:
-        st.session_state["total_chunks"] = (
-            st.session_state.get("total_chunks", 0) + new_chunks
-        )
-        st.toast(f"✓ Додано {new_chunks} нових фрагментів")
+    if any_added:
+        # Виправлення #2: беремо реальну кількість з бази, а не додаємо до
+        # попереднього значення session_state — гарантує консистентність.
+        st.session_state["total_chunks"] = vector_store.count()
+        st.toast(f"✓ Документи додано. Фрагментів у базі: {st.session_state['total_chunks']}")
     else:
         st.toast("ℹ️ Усі вибрані файли вже були оброблені раніше.")
 
@@ -113,4 +115,8 @@ def _handle_clear(vector_store) -> None:
     st.session_state["messages"]     = []
     st.session_state["doc_names"]    = []
     st.session_state["total_chunks"] = 0
+    # Скидаємо кеш після того як база вже фізично видалена з диска.
+    # Порядок важливий: спочатку clear() (видаляє файли + перестворює _db),
+    # потім cache_resource.clear() (змушує Streamlit перестворити VectorStore).
+    st.cache_resource.clear()
     st.rerun()

@@ -14,9 +14,11 @@ def render_chat(rag_chain) -> None:
     """
     messages: list[dict] = st.session_state.get("messages", [])
 
-    # Порожній стан — показуємо підказку
+    empty_placeholder = st.empty()
+
     if not messages:
-        render_empty_state()
+        with empty_placeholder.container():
+            render_empty_state()
 
     # Історія повідомлень
     for msg in messages:
@@ -24,6 +26,7 @@ def render_chat(rag_chain) -> None:
 
     # Обробка нового запиту
     if prompt := st.chat_input("Введіть запит до документів…"):
+        empty_placeholder.empty()
         _handle_user_input(prompt, rag_chain)
 
 
@@ -38,7 +41,7 @@ def _render_message(msg: dict) -> None:
 
 
 def _handle_user_input(prompt: str, rag_chain) -> None:
-    """Додає повідомлення користувача, генерує та відображає відповідь."""
+    """Додає повідомлення користувача, стрімить та відображає відповідь."""
     # Зберігаємо та показуємо запит
     st.session_state.setdefault("messages", []).append(
         {"role": "user", "content": prompt}
@@ -46,22 +49,22 @@ def _handle_user_input(prompt: str, rag_chain) -> None:
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Генеруємо відповідь
+    # Генеруємо відповідь зі стрімінгом
     with st.chat_message("assistant"):
-        with st.spinner(""):
-            try:
-                res     = rag_chain.ask(prompt)
-                answer  = res.get("answer", "")
-                sources = res.get("sources", [])
+        try:
+            stream, sources = rag_chain.ask_stream(prompt)
 
-                st.markdown(answer)
-                render_sources(sources)
+            # st.write_stream() приймає будь-який ітератор рядків,
+            # виводить токени поступово і повертає повний зібраний текст.
+            full_answer = st.write_stream(stream)
 
-                st.session_state["messages"].append({
-                    "role":    "assistant",
-                    "content": answer,
-                    "sources": sources,
-                })
+            render_sources(sources)
 
-            except Exception as e:
-                st.error(f"Помилка генерації: {e}")
+            st.session_state["messages"].append({
+                "role":    "assistant",
+                "content": full_answer,
+                "sources": sources,
+            })
+
+        except Exception as e:
+            st.error(f"Помилка генерації: {e}")

@@ -7,8 +7,13 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - ./db:/app/db           # Зберігаємо базу даних локально
-      - ./data:/app/data       # Синхронізуємо папку з документами
+      - ./db:/app/db
+      - ./data:/app/data
     env_file:
-      - .env                   # Прокидаємо змінні оточення
+      - .env
+    # Виправлення #9: дозволяє контейнеру звертатись до Ollama,
+    # запущеної на хост-машині (поза Docker).
+    # На Linux також додайте у .env: OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always
