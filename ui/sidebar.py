@@ -24,7 +24,7 @@ def render_sidebar(vector_store) -> None:
         section_label("Документи", margin_top=0)
         uploaded_files = st.file_uploader(
             "Перетягніть або оберіть файли",
-            type=["pdf", "txt"],
+            type=["pdf", "txt", "docx", "md"],
             accept_multiple_files=True,
             label_visibility="collapsed",
         )

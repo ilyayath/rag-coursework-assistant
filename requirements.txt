@@ -3,23 +3,25 @@ langchain-community>=0.3.0
 langchain-core>=0.3.0
 langchain-huggingface>=0.1.0
 langchain-chroma>=0.1.0
-# Векторна база даних та пошук
+
+# Векторна база даних
 chromadb>=0.5.0
 sentence-transformers>=3.0.0
 
 # Обробка документів
 pypdf>=5.1.0
 pdfplumber>=0.11.0
+docx2txt>=0.8          # підтримка .docx
 
-# LLM (OpenAI або локальна через Ollama)
+# LLM
 langchain-openai>=0.2.0
 langchain-ollama>=0.2.0
 tiktoken>=0.7.0
 
-# Інтерфейс та середовище
+# Інтерфейс
 streamlit>=1.40.0
 python-dotenv>=1.0.1
 
-# Додатково для коректної роботи в Docker (Linux)
+# Інфраструктура
 pydantic>=2.9.0
 langchain-text-splitters

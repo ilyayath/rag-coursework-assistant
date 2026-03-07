@@ -11,24 +11,30 @@ class Config:
 
     # Для англійських документів all-MiniLM-L6-v2 дає значно кращі scores
     # ніж paraphrase-multilingual (яка оптимізована для мультилінгвальних задач).
-    # Типові L2 scores: 0.2–0.8 (дуже релевантно), 1.0–1.5 (релевантно), >2.0 (слабо).
     # Якщо потрібна підтримка української — поверніться до multilingual моделі.
     EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
     LLM_TYPE        = os.getenv("LLM_TYPE", "ollama")
-    LLM_MODEL       = os.getenv("LLM_MODEL", "llama3.2")
+    LLM_MODEL       = os.getenv("LLM_MODEL", "mistral")
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
 
+    # Retrieval: беремо більше кандидатів щоб reranker мав з чого вибирати
     CHUNK_SIZE    = 500
     CHUNK_OVERLAP = 100
-    K_RETRIEVAL   = 8
+    K_RETRIEVAL   = 12   # збільшено з 8: reranker відбере кращі з більшого пулу
 
     # Поріг відстані для фільтрації нерелевантних чанків.
-    # all-MiniLM-L6-v2 + Chroma повертає L2 distance:
-    # 0.0–0.8 = дуже релевантно, 0.8–1.5 = релевантно, >2.0 = нерелевантно.
-    # Дивись логи (Rank N score=...) щоб підібрати під свої дані.
-    SCORE_THRESHOLD = 5.0
+    # all-MiniLM-L6-v2 + Chroma: 0.0–0.8 дуже релевантно, >2.0 нерелевантно.
+    SCORE_THRESHOLD = 2.0
+
+    # Reranker (cross-encoder)
+    RERANKER_ENABLED = True
+    RERANKER_MODEL   = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    RERANKER_TOP_N   = 5    # скільки чанків подавати в LLM після rerank
+
+    # Conversation history — скільки останніх пар (user+assistant) включати в промпт
+    CONVERSATION_HISTORY_TURNS = 3
 
     @classmethod
     def validate(cls) -> None:
@@ -42,5 +48,4 @@ class Config:
 for directory in [Config.DB_DIR, Config.DATA_DIR]:
     os.makedirs(directory, exist_ok=True)
 
-# Валідація при імпорті — падаємо одразу, а не під час першого запиту
 Config.validate()
