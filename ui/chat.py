@@ -37,29 +37,29 @@ def _render_message(msg: dict) -> None:
 def _handle_user_input(prompt: str, rag_chain) -> None:
     messages = st.session_state.setdefault("messages", [])
 
-    # Зберігаємо та показуємо запит користувача
-    messages.append({"role": "user", "content": prompt})
+    # Зберігаємо history ДО додавання поточного запиту —
+    # це запобігає непарній history якщо генерація провалиться.
+    history = list(messages)
+
+    # Показуємо запит користувача
     with st.chat_message("user"):
         st.markdown(prompt)
-
-    # Передаємо історію (без поточного запиту) для контексту
-    history = messages[:-1]
 
     with st.chat_message("assistant"):
         try:
             stream, sources = rag_chain.ask_stream(prompt, history=history)
             full_answer = st.write_stream(stream)
 
-            # Захист: write_stream може повернути порожній рядок при обриві стріму.
-            # Зберігаємо повідомлення лише якщо відповідь не порожня —
-            # порожнє повідомлення в history ламає наступний _format_history.
             if full_answer:
-                render_sources(sources)
+                # Зберігаємо обидва повідомлення лише після успішної генерації —
+                # якщо щось пішло не так, history залишається консистентною.
+                messages.append({"role": "user", "content": prompt})
                 messages.append({
                     "role":    "assistant",
                     "content": full_answer,
                     "sources": sources,
                 })
+                render_sources(sources)
             else:
                 st.warning("Отримано порожню відповідь. Спробуйте ще раз.")
 

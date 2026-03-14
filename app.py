@@ -42,7 +42,13 @@ def _load_system():
     Spinner показується тільки під час реального завантаження.
     """
     vs = VectorStore()
-    return vs, RAGChain(vector_store=vs)
+    chain = RAGChain(vector_store=vs)
+    # Health-check: перевіряємо що компоненти ініціалізовані коректно
+    if vs._db is None:
+        raise RuntimeError("VectorStore не ініціалізований — перевірте ChromaDB.")
+    if chain.llm is None:
+        raise RuntimeError("LLM не ініціалізований — перевірте Ollama або OpenAI API key.")
+    return vs, chain
 
 
 # ── Ініціалізація стану сесії ────────────────────────────────────────────────

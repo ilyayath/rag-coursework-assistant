@@ -20,6 +20,36 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
+def _load_text(file_path: str) -> list:
+    """
+    Завантажує текстовий файл з автоматичним визначенням кодування.
+    Спробує UTF-8, потім UTF-8-BOM, потім cp1251 (Windows-кирилиця).
+    """
+    for encoding in ("utf-8", "utf-8-sig", "cp1251"):
+        try:
+            loader = TextLoader(file_path, encoding=encoding)
+            docs = loader.load()
+            for doc in docs:
+                doc.page_content = clean_text(doc.page_content)
+                doc.metadata.setdefault("page", 1)
+            return docs
+        except UnicodeDecodeError:
+            continue
+    # Останній варіант — читаємо напряму з ігноруванням нерозпізнаних символів
+    logger.warning(f"Не вдалось визначити кодування {file_path} — читаю з errors=ignore")
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            raw_text = f.read()
+        from langchain_core.documents import Document as LCDoc
+        docs = [LCDoc(page_content=raw_text, metadata={"source": file_path, "page": 1})]
+        for doc in docs:
+            doc.page_content = clean_text(doc.page_content)
+        return docs
+    except Exception as e:
+        logger.error(f"Не вдалось завантажити {file_path}: {e}")
+        return []
+
+
 def load_and_split_documents(file_path: str) -> List[Document]:
     """
     Завантажує файл. Підтримувані формати: PDF, TXT, DOCX, MD.
@@ -40,19 +70,11 @@ def load_and_split_documents(file_path: str) -> List[Document]:
             documents = raw_docs
 
         elif file_extension == ".txt":
-            loader = TextLoader(file_path, encoding="utf-8")
-            documents = loader.load()
-            for doc in documents:
-                doc.page_content = clean_text(doc.page_content)
-                doc.metadata.setdefault("page", 1)
+            documents = _load_text(file_path)
 
         elif file_extension == ".md":
             # Markdown — завантажуємо як текст, зберігаємо структуру заголовків
-            loader = TextLoader(file_path, encoding="utf-8")
-            documents = loader.load()
-            for doc in documents:
-                doc.page_content = clean_text(doc.page_content)
-                doc.metadata.setdefault("page", 1)
+            documents = _load_text(file_path)
 
         elif file_extension == ".docx":
             try:
@@ -87,11 +109,11 @@ def load_and_split_documents(file_path: str) -> List[Document]:
 
         # Відфільтровуємо надто короткі фрагменти — вони засмічують базу
         # і погіршують якість пошуку (порожні сторінки PDF, заголовки тощо).
-        MIN_CHUNK_LEN = 30
+        min_len = Config.MIN_CHUNK_LEN
         before = len(split_docs)
-        split_docs = [d for d in split_docs if len(d.page_content.strip()) >= MIN_CHUNK_LEN]
+        split_docs = [d for d in split_docs if len(d.page_content.strip()) >= min_len]
         if len(split_docs) < before:
-            logger.info(f"Відфільтровано {before - len(split_docs)} коротких фрагментів (<{MIN_CHUNK_LEN} символів).")
+            logger.info(f"Відфільтровано {before - len(split_docs)} коротких фрагментів (<{min_len} символів).")
 
         for doc in split_docs:
             doc.metadata["source"] = os.path.basename(

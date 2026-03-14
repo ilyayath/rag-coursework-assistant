@@ -27,15 +27,21 @@ class Config:
 
     # Поріг відстані для фільтрації нерелевантних чанків.
     # all-MiniLM-L6-v2 + Chroma: 0.0–0.8 дуже релевантно, >2.0 нерелевантно.
-    SCORE_THRESHOLD = 2.0
+    SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "2.0"))
 
     # Reranker (cross-encoder)
-    RERANKER_ENABLED = True
-    RERANKER_MODEL   = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    RERANKER_TOP_N   = 5    # скільки чанків подавати в LLM після rerank
+    RERANKER_ENABLED = os.getenv("RERANKER_ENABLED", "true").lower() == "true"
+    RERANKER_MODEL   = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+    RERANKER_TOP_N   = int(os.getenv("RERANKER_TOP_N", "5"))
+
+    # Мінімальна довжина фрагмента після чанкінгу (символів)
+    MIN_CHUNK_LEN = int(os.getenv("MIN_CHUNK_LEN", "30"))
+
+    # Максимальний розмір файлу для завантаження (МБ)
+    MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "50"))
 
     # Conversation history — скільки останніх пар (user+assistant) включати в промпт
-    CONVERSATION_HISTORY_TURNS = 3
+    CONVERSATION_HISTORY_TURNS = int(os.getenv("CONVERSATION_HISTORY_TURNS", "3"))
 
     @classmethod
     def validate(cls) -> None:

@@ -21,6 +21,8 @@ logger = get_logger("Reranker")
 class Reranker:
     def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
         logger.info(f"Завантаження reranker моделі: {model_name}...")
+        self._model = None
+        self._enabled = False
         try:
             from sentence_transformers import CrossEncoder
             self._model = CrossEncoder(model_name)
@@ -31,7 +33,11 @@ class Reranker:
                 "sentence-transformers не встановлено — reranker вимкнено. "
                 "Встановіть: pip install sentence-transformers"
             )
-            self._enabled = False
+        except Exception as e:
+            logger.error(
+                f"Не вдалось завантажити reranker модель '{model_name}': {e} "
+                "— reranker вимкнено, система продовжить без нього."
+            )
 
     @property
     def enabled(self) -> bool:

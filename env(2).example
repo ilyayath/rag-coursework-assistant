@@ -25,3 +25,20 @@ CHUNK_OVERLAP=100
 
 # Кількість кандидатів для векторного пошуку (до реранкінгу)
 K_RETRIEVAL=12
+
+# Поріг відстані для фільтрації нерелевантних фрагментів (L2, all-MiniLM)
+SCORE_THRESHOLD=2.0
+
+# Реранкер: увімкнути/вимкнути, модель, кількість топ фрагментів
+RERANKER_ENABLED=true
+RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+RERANKER_TOP_N=5
+
+# Мінімальна довжина фрагмента після чанкінгу (символів)
+MIN_CHUNK_LEN=30
+
+# Максимальний розмір файлу для завантаження (МБ)
+MAX_FILE_SIZE_MB=50
+
+# Кількість пар повідомлень у контексті діалогу
+CONVERSATION_HISTORY_TURNS=3

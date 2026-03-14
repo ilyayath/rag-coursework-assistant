@@ -13,9 +13,6 @@ from ui.components import (
     render_doc_list,
 )
 
-MAX_FILE_SIZE_MB = 50
-
-
 def render_sidebar(vector_store) -> None:
     with st.sidebar:
         render_sidebar_logo()
@@ -61,19 +58,23 @@ def _handle_process(uploaded_files, vector_store) -> None:
         return
 
     bar = st.progress(0, text="")
+    status = st.empty()
     processed_docs = st.session_state.get("doc_names", [])
     any_added = False
 
     for i, file in enumerate(uploaded_files):
-        bar.progress((i + 0.5) / len(uploaded_files), text=f"⟳  {file.name}")
+        pct = (i + 0.5) / len(uploaded_files)
+        bar.progress(pct, text=f"Файл {i + 1} з {len(uploaded_files)}: {file.name}")
+        status.caption(f"⟳ Обробка: {file.name}")
 
         # Перевірка: вже оброблено
         if file.name in processed_docs:
             continue
 
         # Перевірка розміру файлу
-        if file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
-            st.error(f"Файл «{file.name}» перевищує {MAX_FILE_SIZE_MB} MB — пропущено.")
+        from src.config import Config
+        if file.size > Config.MAX_FILE_SIZE_MB * 1024 * 1024:
+            st.error(f"Файл «{file.name}» перевищує {Config.MAX_FILE_SIZE_MB} MB — пропущено.")
             continue
 
         tmp_path = None
@@ -100,6 +101,7 @@ def _handle_process(uploaded_files, vector_store) -> None:
                 os.unlink(tmp_path)
 
     bar.empty()
+    status.empty()
 
     if any_added:
         # Виправлення #2: беремо реальну кількість з бази, а не додаємо до

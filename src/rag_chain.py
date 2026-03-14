@@ -122,9 +122,16 @@ STANDALONE QUERY:"""
     def _rewrite_query(self, query: str, history: List[Dict]) -> str:
         """
         Переформульовує follow-up запит у standalone query для кращого retrieval.
-        Якщо history порожня — повертає оригінальний запит без змін.
+        Викликає LLM лише якщо в history є хоча б одна повна пара user+assistant —
+        інакше немає контексту для переформулювання.
         """
         if not history:
+            return query
+
+        # Перевіряємо що є хоча б одна пара (user → assistant)
+        roles = [m["role"] for m in history if m["role"] in ("user", "assistant")]
+        has_full_pair = "user" in roles and "assistant" in roles
+        if not has_full_pair:
             return query
 
         history_text = self._format_history(history)
@@ -151,7 +158,7 @@ STANDALONE QUERY:"""
         )
 
         if not results_with_scores:
-            logger.warning("Не знайдено релевантних документів.")
+            logger.warning("_retrieve: база порожня або пошук не дав результатів.")
             return None, None
 
         for i, (doc, score) in enumerate(results_with_scores):
@@ -169,10 +176,10 @@ STANDALONE QUERY:"""
 
         if not filtered:
             logger.warning(
-                f"Всі результати перевищують поріг {Config.SCORE_THRESHOLD}. "
-                f"Використовую топ-3 без фільтра."
+                f"Всі результати перевищують поріг {Config.SCORE_THRESHOLD} — "
+                f"документи не стосуються запиту. Повертаємо 'не знайдено'."
             )
-            filtered = results_with_scores[:3]
+            return None, None
 
         if self.reranker and self.reranker.enabled:
             filtered = self.reranker.rerank(query, filtered, top_n=Config.RERANKER_TOP_N)
@@ -214,6 +221,11 @@ STANDALONE QUERY:"""
             "context":  "\n\n".join(context_parts),
             "question": query,
         })
+
+        # Захист від порожньої відповіді
+        if not response_text or not response_text.strip():
+            logger.warning("ask(): LLM повернув порожню відповідь.")
+            return {"answer": _NOT_FOUND, "sources": []}
 
         return {"answer": response_text, "sources": sources}
 

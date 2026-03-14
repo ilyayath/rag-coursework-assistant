@@ -46,7 +46,8 @@ class VectorStore:
         # Дедуплікація: отримуємо вже існуючі source-імена з бази
         # щоб не додати той самий файл двічі при повторному завантаженні.
         try:
-            existing = self._db._collection.get(include=["metadatas"])
+            # Використовуємо публічний API ChromaDB
+            existing = self._db.get(include=["metadatas"])
             existing_sources = {
                 m.get("source") for m in existing["metadatas"] if m.get("source")
             }
@@ -69,8 +70,12 @@ class VectorStore:
             )
 
         logger.info(f"Додаю {len(new_docs)} фрагментів у базу...")
-        self._db.add_documents(new_docs)
-        logger.info("Документи успішно збережені.")
+        try:
+            self._db.add_documents(new_docs)
+            logger.info("Документи успішно збережені.")
+        except Exception as e:
+            logger.error(f"Помилка при збереженні документів: {e}")
+            raise  # пробрасуємо вгору щоб sidebar показав повідомлення про помилку
 
     def search_with_score(
         self, query: str, k: int = Config.K_RETRIEVAL
@@ -86,12 +91,12 @@ class VectorStore:
 
     def count(self) -> int:
         """Повертає кількість фрагментів у базі."""
-        # Виправлення #3: логуємо помилку замість мовчазного повернення 0
         if self._db is None:
             logger.warning("count() викликано поки _db == None.")
             return 0
         try:
-            return self._db._collection.count()
+            # Використовуємо публічний API замість приватного _collection
+            return len(self._db.get()["ids"])
         except Exception as e:
             logger.error(f"Помилка при count(): {e}")
             return 0
