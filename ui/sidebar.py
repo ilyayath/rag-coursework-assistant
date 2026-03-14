@@ -115,8 +115,9 @@ def _handle_clear(vector_store) -> None:
     st.session_state["messages"]     = []
     st.session_state["doc_names"]    = []
     st.session_state["total_chunks"] = 0
-    # Скидаємо кеш після того як база вже фізично видалена з диска.
-    # Порядок важливий: спочатку clear() (видаляє файли + перестворює _db),
-    # потім cache_resource.clear() (змушує Streamlit перестворити VectorStore).
+    # Флаг: повідомляє _init_session що база була щойно очищена навмисно.
+    # Без нього _init_session після rerun бачить total_chunks==0 і відновлює
+    # старе значення з бази — бо vector_store.count() може повернути старі дані.
+    st.session_state["just_cleared"] = True
     st.cache_resource.clear()
     st.rerun()

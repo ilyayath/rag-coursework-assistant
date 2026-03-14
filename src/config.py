@@ -16,13 +16,14 @@ class Config:
 
     LLM_TYPE        = os.getenv("LLM_TYPE", "ollama")
     LLM_MODEL       = os.getenv("LLM_MODEL", "mistral")
-    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_BASE_URL    = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_TIMEOUT_SEC = int(os.getenv("OLLAMA_TIMEOUT_SEC", "120"))  # timeout для Ollama
     OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
 
     # Retrieval: беремо більше кандидатів щоб reranker мав з чого вибирати
-    CHUNK_SIZE    = 500
-    CHUNK_OVERLAP = 100
-    K_RETRIEVAL   = 12   # збільшено з 8: reranker відбере кращі з більшого пулу
+    CHUNK_SIZE    = int(os.getenv("CHUNK_SIZE",    "500"))
+    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
+    K_RETRIEVAL   = int(os.getenv("K_RETRIEVAL",   "12"))
 
     # Поріг відстані для фільтрації нерелевантних чанків.
     # all-MiniLM-L6-v2 + Chroma: 0.0–0.8 дуже релевантно, >2.0 нерелевантно.

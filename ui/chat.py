@@ -18,7 +18,11 @@ def render_chat(rag_chain) -> None:
     for msg in messages:
         _render_message(msg)
 
-    if prompt := st.chat_input("Введіть запит до документів…"):
+    # Блокуємо введення якщо база порожня
+    has_docs = st.session_state.get("total_chunks", 0) > 0
+    if not has_docs:
+        st.chat_input("Спочатку завантажте документи…", disabled=True)
+    elif prompt := st.chat_input("Введіть запит до документів…"):
         empty_placeholder.empty()
         _handle_user_input(prompt, rag_chain)
 
@@ -46,13 +50,18 @@ def _handle_user_input(prompt: str, rag_chain) -> None:
             stream, sources = rag_chain.ask_stream(prompt, history=history)
             full_answer = st.write_stream(stream)
 
-            render_sources(sources)
-
-            messages.append({
-                "role":    "assistant",
-                "content": full_answer,
-                "sources": sources,
-            })
+            # Захист: write_stream може повернути порожній рядок при обриві стріму.
+            # Зберігаємо повідомлення лише якщо відповідь не порожня —
+            # порожнє повідомлення в history ламає наступний _format_history.
+            if full_answer:
+                render_sources(sources)
+                messages.append({
+                    "role":    "assistant",
+                    "content": full_answer,
+                    "sources": sources,
+                })
+            else:
+                st.warning("Отримано порожню відповідь. Спробуйте ще раз.")
 
         except Exception as e:
             st.error(f"Помилка генерації: {e}")

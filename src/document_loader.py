@@ -42,17 +42,26 @@ def load_and_split_documents(file_path: str) -> List[Document]:
         elif file_extension == ".txt":
             loader = TextLoader(file_path, encoding="utf-8")
             documents = loader.load()
+            for doc in documents:
+                doc.page_content = clean_text(doc.page_content)
+                doc.metadata.setdefault("page", 1)
 
         elif file_extension == ".md":
             # Markdown — завантажуємо як текст, зберігаємо структуру заголовків
             loader = TextLoader(file_path, encoding="utf-8")
             documents = loader.load()
+            for doc in documents:
+                doc.page_content = clean_text(doc.page_content)
+                doc.metadata.setdefault("page", 1)
 
         elif file_extension == ".docx":
             try:
                 from langchain_community.document_loaders import Docx2txtLoader
                 loader = Docx2txtLoader(file_path)
                 documents = loader.load()
+                for doc in documents:
+                    doc.page_content = clean_text(doc.page_content)
+                    doc.metadata.setdefault("page", 1)
             except ImportError:
                 logger.error(
                     "Для завантаження .docx встановіть: pip install docx2txt"
@@ -75,6 +84,14 @@ def load_and_split_documents(file_path: str) -> List[Document]:
         )
 
         split_docs = text_splitter.split_documents(documents)
+
+        # Відфільтровуємо надто короткі фрагменти — вони засмічують базу
+        # і погіршують якість пошуку (порожні сторінки PDF, заголовки тощо).
+        MIN_CHUNK_LEN = 30
+        before = len(split_docs)
+        split_docs = [d for d in split_docs if len(d.page_content.strip()) >= MIN_CHUNK_LEN]
+        if len(split_docs) < before:
+            logger.info(f"Відфільтровано {before - len(split_docs)} коротких фрагментів (<{MIN_CHUNK_LEN} символів).")
 
         for doc in split_docs:
             doc.metadata["source"] = os.path.basename(

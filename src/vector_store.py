@@ -75,7 +75,14 @@ class VectorStore:
     def search_with_score(
         self, query: str, k: int = Config.K_RETRIEVAL
     ) -> List[Tuple[Document, float]]:
-        return self._db.similarity_search_with_score(query, k=k)
+        if self._db is None:
+            logger.error("search_with_score викликано поки _db == None.")
+            return []
+        try:
+            return self._db.similarity_search_with_score(query, k=k)
+        except Exception as e:
+            logger.error(f"Помилка векторного пошуку: {e}")
+            return []
 
     def count(self) -> int:
         """Повертає кількість фрагментів у базі."""

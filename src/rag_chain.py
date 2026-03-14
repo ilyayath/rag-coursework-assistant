@@ -27,6 +27,7 @@ class RAGChain:
                 model=Config.LLM_MODEL,
                 base_url=Config.OLLAMA_BASE_URL,
                 temperature=0.1,
+                timeout=Config.OLLAMA_TIMEOUT_SEC,
             )
         else:
             self.llm = ChatOpenAI(
@@ -154,7 +155,7 @@ STANDALONE QUERY:"""
             return None, None
 
         for i, (doc, score) in enumerate(results_with_scores):
-            logger.info(
+            logger.debug(
                 f"Rank {i + 1} score={score:.4f} | "
                 f"{doc.metadata.get('source','?')} p.{doc.metadata.get('page','?')} | "
                 f"{doc.page_content[:80].replace(chr(10),' ')}..."
