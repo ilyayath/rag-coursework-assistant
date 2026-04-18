@@ -1,0 +1,16 @@
+Запитання,Очікує відповідь,Знайдено,Коректно,L2 (без реранк.),CE score,Faithfulness
+What is a list in Python?,Так,Так,Так,0.9007,1.4258,0.333
+What methods does a Python list have?,Так,Так,Так,0.9693,5.4425,1.0
+How does a for loop work in Python?,Так,Так,Так,0.9833,5.3923,0.333
+What is a dictionary in Python?,Так,Так,Так,0.5081,6.7404,0.667
+What is the difference between a tuple and a list?,Так,Так,Так,0.7232,2.2083,0.667
+What is the difference between git merge and git rebase?,Так,Так,Так,0.5128,5.9945,0.875
+How do you create a new branch in Git?,Так,Так,Так,0.4798,8.4155,1.0
+What does git stash do?,Так,Так,Так,0.4839,8.7729,1.0
+How do you undo the last commit in Git?,Так,Так,Так,0.4849,6.4195,1.0
+What is a pull request?,Так,Так,Так,0.6208,7.8068,0.667
+What is the capital of France?,Ні,Ні,Так,1.6153,-10.9787,
+Who invented the telephone?,Ні,Ні,Так,1.3633,-8.6708,
+What is the speed of light?,Ні,Ні,Так,1.351,-8.8209,
+Who wrote Hamlet?,Ні,Ні,Так,1.3971,-9.0031,
+What is the boiling point of water?,Ні,Ні,Так,1.4474,-9.197,

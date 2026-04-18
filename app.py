@@ -61,18 +61,16 @@ def _init_session(vector_store: VectorStore) -> None:
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
 
-    # Синхронізація: якщо сторінку перезавантажили, але база непорожня —
-    # відновлюємо лічильник чанків зі справжнього стану Chroma.
-    # Але НЕ відновлюємо якщо базу щойно очистили (флаг just_cleared).
     if st.session_state.pop("just_cleared", False):
-        # База щойно очищена — залишаємо total_chunks = 0, не відновлюємо.
         pass
     elif st.session_state["total_chunks"] == 0:
         real_count = vector_store.count()
         if real_count > 0:
             st.session_state["total_chunks"] = real_count
             logger.info(f"Відновлено {real_count} фрагментів зі збереженої бази.")
-
+            # Додано: відновлюємо doc_names якщо база непорожня але список файлів загублено
+            if not st.session_state.get("doc_names"):
+                st.session_state["doc_names"] = ["(відновлено з бази)"]
 
 # ── Головна функція ──────────────────────────────────────────────────────────
 def main() -> None:

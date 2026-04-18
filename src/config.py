@@ -27,7 +27,7 @@ class Config:
 
     # Поріг відстані для фільтрації нерелевантних чанків.
     # all-MiniLM-L6-v2 + Chroma: 0.0–0.8 дуже релевантно, >2.0 нерелевантно.
-    SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "2.0"))
+    SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "1.2"))
 
     # Reranker (cross-encoder)
     RERANKER_ENABLED = os.getenv("RERANKER_ENABLED", "true").lower() == "true"

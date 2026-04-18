@@ -6,6 +6,7 @@ import os
 import tempfile
 import streamlit as st
 
+from src.config import Config
 from ui.components import (
     render_sidebar_logo,
     section_label,
@@ -72,7 +73,6 @@ def _handle_process(uploaded_files, vector_store) -> None:
             continue
 
         # Перевірка розміру файлу
-        from src.config import Config
         if file.size > Config.MAX_FILE_SIZE_MB * 1024 * 1024:
             st.error(f"Файл «{file.name}» перевищує {Config.MAX_FILE_SIZE_MB} MB — пропущено.")
             continue
